@@ -1,6 +1,11 @@
 # For now this is a very simple module only made to work with a picoscope 2204A
-import mmap
+import serial
 import pylsl
+import mmap
+
+import numpy as np
+
+from typing import Callable
 
 from pathlib import Path
 from fire import Fire
@@ -23,6 +28,10 @@ from picoscope_streamer.awg import set_sig_gen
 
 from ctypes import POINTER, c_int16, c_uint32
 
+
+from concurrent.futures import ThreadPoolExecutor
+
+
 CALLBACK = C_CALLBACK_FUNCTION_FACTORY(
     None,
     POINTER(POINTER(c_int16)),
@@ -36,6 +45,11 @@ CALLBACK = C_CALLBACK_FUNCTION_FACTORY(
 STREAM_NAME = "PICOSTREAM"
 
 MMAP_FILE = "../offset_utf8.txt"
+
+LASTMAX = 0
+CHUNK = 10_000
+
+THREADPOOL = ThreadPoolExecutor()
 
 
 # In [37]: %timeit read_mmap_from_start(mmapo)
@@ -55,7 +69,7 @@ def get_data(
     _auto_stop,
     n_values,
     lsloutlet: pylsl.StreamOutlet | None = None,
-    mmapo: mmap.mmap | None = None,
+    # mmapo: mmap.mmap | None = None,
 ):
     # From Docs: https://www.picotech.com/download/manuals/ps2000pg.en-10.pdf
     # overviewBuffer [0] - ch_a_max
@@ -66,12 +80,19 @@ def get_data(
     a = buffers[0][0:n_values]
     b = buffers[3][0:n_values]
 
+    global CHUNK
+    CHUNK *= -1
+
     # b = read_mmap_from_start(mmapo) if mmapo else 0
     # b = 0
 
     for va, vb in zip(a, b):
         # print(f"{va=}, {vb=}")
-        lsloutlet.push_sample([va, vb * 3])
+        # if va > 15_000:
+        #     arduino.write(b"u")
+        # else:
+        #     arduino.write(b"d")
+        lsloutlet.push_sample([va, vb * 3, CHUNK])
 
 
 def setup_osci(
@@ -102,9 +123,8 @@ def update(device: Device, callback: None = None):
 
 
 def get_stream_outlet(
-    stream_name: str = STREAM_NAME, sfreq: int = 10000
+    stream_name: str = STREAM_NAME, sfreq: int = 10000, n_channels: int = 3
 ) -> pylsl.StreamOutlet:
-    n_channels = 2
     info = pylsl.StreamInfo(
         stream_name,
         "EEG",
@@ -114,14 +134,12 @@ def get_stream_outlet(
         f"{stream_name}",
     )
 
-    max_buffered_s = 10
+    max_buffered_s = 5
 
     return pylsl.StreamOutlet(info, max_buffered=max_buffered_s)
 
 
 def main(stop_event: threading.Event = threading.Event()):
-    global adc_samples, nnew
-    adc_samples = []
     ch_range_a = ps.PS2000_VOLTAGE_RANGE["PS2000_1V"]
     ch_range_b = ps.PS2000_VOLTAGE_RANGE["PS2000_1V"]
 
@@ -131,8 +149,8 @@ def main(stop_event: threading.Event = threading.Event()):
         )
 
         # Activate the AWG
-        freq_hz = 1.0  # we expect reaction to be faster than 10ms
-        sig_type = 2  # Triangular is better for buffer stability (the edge in the saber tooth leads to problems)
+        freq_hz = 100.0  # we expect reaction to be faster than 10ms
+        sig_type = 0  # Triangular is better for buffer stability (the edge in the saber tooth leads to problems)
         amp_uV = 2_000_000
         status = set_sig_gen(
             status,
@@ -142,9 +160,9 @@ def main(stop_event: threading.Event = threading.Event()):
             amp_uv=amp_uV,
         )
 
-        agg_factor = 100
-        sample_interval = 1000  # sample interval in ns
-        max_samples = 1_000_000
+        agg_factor = 10
+        sample_interval = 10_000  # sample interval in ns
+        max_samples = 2_000_000
 
         res = ps.ps2000_run_streaming_ns(
             device.handle,
@@ -153,7 +171,7 @@ def main(stop_event: threading.Event = threading.Event()):
             max_samples,
             False,
             agg_factor,
-            1_000_000,
+            15_000,
         )
 
         lsloutlet = get_stream_outlet(
@@ -170,15 +188,13 @@ def main(stop_event: threading.Event = threading.Event()):
         #     mmapo = None
         mmapo = None
 
-        pget_data = partial(get_data, lsloutlet=lsloutlet, mmapo=mmapo)
+        pget_data = partial(get_data, lsloutlet=lsloutlet)
         cback = CALLBACK(pget_data)
         pupdate = partial(update, device=device, callback=cback)
 
         while True and device.handle is not None and not stop_event.is_set():
             # fetch data from the osci
             pupdate()
-
-        # mmapo.close()
 
 
 def get_main_thread() -> tuple[threading.Thread, threading.Event]:
