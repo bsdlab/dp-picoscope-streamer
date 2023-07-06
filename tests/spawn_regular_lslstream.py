@@ -20,7 +20,7 @@ logger.setLevel(logging.DEBUG)
 
 def start_saw_stream(
     push_freq: int = 1000,
-    stim_freq: int = 10,
+    stim_freq: int = 20,
     stop_event: threading.Event = threading.Event(),
 ):
     outlet = get_stream_outlet(

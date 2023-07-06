@@ -24,6 +24,8 @@ from picosdk.ctypes_wrapper import C_CALLBACK_FUNCTION_FACTORY
 from picosdk.device import Device
 from picosdk.PicoDeviceEnums import picoEnum
 
+from picoscope_streamer.awg import set_sig_gen
+
 from ctypes import POINTER, c_int16, c_uint32
 
 from enum import IntEnum
@@ -49,8 +51,20 @@ CALLBACK = C_CALLBACK_FUNCTION_FACTORY(
 )
 
 STREAM_NAME = "PICOSTREAM"
+
+MMAP_FILE = "../offset_utf8.txt"
+
 LASTMAX = 0
 CHUNK = 1  # 10_000
+
+
+# In [37]: %timeit read_mmap_from_start(mmapo)
+# 136 ns ± 0.904 ns per loop (mean ± std. dev. of 7 runs, 10,000,000 loops e
+# ach)
+# about 50ns is for the int() conversion
+def read_mmap_from_start(mmapo: mmap.mmap):
+    mmapo.seek(0)
+    return int(mmapo.read())
 
 
 def get_data(
@@ -69,15 +83,12 @@ def get_data(
 
 def buffer_to_lsl(buffers, n_values, lsloutlet: pylsl.StreamOutlet):
     a = buffers[0][0:n_values]
+    b = buffers[3][0:n_values]
+
     global CHUNK
     CHUNK *= -1
-
-    try:
-        lsloutlet.push_chunk(a)
-    except ValueError:
-        pass
-    except SystemError:
-        pass
+    for va, vb in zip(a, b):
+        lsloutlet.push_sample([va, vb * 3, CHUNK * n_values])
 
 
 def setup_osci(
@@ -91,8 +102,15 @@ def setup_osci(
         1,
         channel_range_a,
     )
-
+    status["setChB"] = ps.ps2000_set_channel(
+        device.handle,
+        0,
+        picoEnum.PICO_CHANNEL["PICO_CHANNEL_B"],
+        1,
+        channel_range_b,
+    )
     assert_pico2000_ok(status["setChA"])
+    assert_pico2000_ok(status["setChB"])
     return status
 
 
@@ -101,9 +119,7 @@ def update(device: Device, callback: None = None):
 
 
 def get_stream_outlet(
-    stream_name: str = STREAM_NAME,
-    sfreq: int = 10000,
-    n_channels: int = 1,
+    stream_name: str = STREAM_NAME, sfreq: int = 10000, n_channels: int = 3
 ) -> pylsl.StreamOutlet:
     info = pylsl.StreamInfo(
         stream_name,
@@ -121,19 +137,34 @@ def get_stream_outlet(
 
 def main(stop_event: threading.Event = threading.Event()):
     ch_range_a = ps.PS2000_VOLTAGE_RANGE["PS2000_200MV"]
+    ch_range_b = ps.PS2000_VOLTAGE_RANGE["PS2000_200MV"]
 
     with ps.open_unit() as device:
-        status = setup_osci(device, channel_range_a=ch_range_a)
+        status = setup_osci(
+            device, channel_range_a=ch_range_a, channel_range_b=ch_range_b
+        )
 
-        agg_factor = 1
-        sample_interval = 300  # sample interval in ns - try to be as fast as possible, processing is usually sample_interval * 500
-        max_samples = 10_000
+        # Activate the AWG
+        freq_hz = 100.0  # we expect reaction to be faster than 10ms
+        sig_type = 0  # Triangular is better for buffer stability (the edge in the saber tooth leads to problems)
+        amp_uV = 2_000_000
+        status = set_sig_gen(
+            status,
+            chandle=device.handle,
+            freq=freq_hz,
+            sig_type=sig_type,
+            amp_uv=amp_uV,
+        )
+
+        agg_factor = 10
+        sample_interval = 10_000  # sample interval in ns
+        max_samples = 100_000
 
         res = ps.ps2000_run_streaming_ns(
             device.handle,
             sample_interval,
             TimeUnit.NANOSECOND,
-            max_samples,  # seems not to really have an impact -> the sdk seems to always work in chunks of 500 if possible, no matter what time etc is specified
+            max_samples,
             False,
             agg_factor,
             25_000,
@@ -143,6 +174,15 @@ def main(stop_event: threading.Event = threading.Event()):
             stream_name=STREAM_NAME,
             sfreq=1 / (agg_factor * sample_interval * 1e-9),
         )
+
+        # if Path(MMAP_FILE).exists():
+        #     with open(MMAP_FILE, "r", encoding="utf-8") as fo:
+        #         mmapo = mmap.mmap(
+        #             fo.fileno(), length=0, access=mmap.ACCESS_READ
+        #         )
+        # else:
+        #     mmapo = None
+        mmapo = None
 
         pget_data = partial(get_data, lsloutlet=lsloutlet)
         cback = CALLBACK(pget_data)
