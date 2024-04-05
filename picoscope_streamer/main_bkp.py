@@ -145,9 +145,9 @@ def main(stop_event: threading.Event = threading.Event()):
         )
 
         # Activate the AWG
-        freq_hz = 100.0  # we expect reaction to be faster than 10ms
+        freq_hz = 1.0  # slow frequency for the CorTec device,
         sig_type = 0  # Triangular is better for buffer stability (the edge in the saber tooth leads to problems)
-        amp_uV = 2_000_000
+        amp_uV = 4_000_000
         status = set_sig_gen(
             status,
             chandle=device.handle,
