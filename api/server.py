@@ -5,7 +5,7 @@ from dareplane_utils.default_server.server import DefaultServer
 from picoscope_streamer.utils.logging import logger
 
 # load from bkp which has the stimulation activated
-from picoscope_streamer.main_bkp import get_main_thread
+from picoscope_streamer.main import get_main_thread
 
 
 def main(port: int = 8080, ip: str = "127.0.0.1", loglevel: int = 10):
