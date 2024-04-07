@@ -12,7 +12,8 @@ def set_sig_gen(
     amp_uv: int = 2_000_000,
 ) -> dict:
     """Set the signal generator > should configure and start the AWG"""
-    wavetype = "PS2000_RAMPUP"
+
+    # wavetype = "PS2000_RAMPUP"
     wavetype = ctypes.c_int32(sig_type)
     # As of official docs
     # https://www.picotech.com/download/manuals/picoscope-2000-series-programmers-guide.pdf
