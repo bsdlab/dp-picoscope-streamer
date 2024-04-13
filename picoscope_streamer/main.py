@@ -54,6 +54,13 @@ STREAM_NAME = "PICOSTREAM"
 LASTMAX = 0
 CHUNK = 1  # 10_000
 
+TARGET_SRATE_HZ = 5_000
+
+LSL_BUFFER = np.zeros((5_000_000, 3))
+LSL_LAST_PUSH = time.perf_counter_ns()
+CURRIDX = 0
+LAST_CB_CALL = time.perf_counter_ns()
+
 
 def get_data(
     buffers,
@@ -66,6 +73,11 @@ def get_data(
 ):
     # Threaded execution is not a good idead at all -> very large gaps
     # THREADPOOL.submit(partial(buffer_to_lsl, buffers, n_values, lsloutlet))
+
+    # global LAST_CB_CALL
+
+    # print(f"Last CB: {(time.perf_counter_ns() - LAST_CB_CALL)*1e-6:.3f}ms")
+    # LAST_CB_CALL = time.perf_counter_ns()
     buffer_to_lsl(buffers, n_values, lsloutlet)
 
 
@@ -73,10 +85,47 @@ def buffer_to_lsl(buffers, n_values, lsloutlet: pylsl.StreamOutlet):
     a = buffers[0][0:n_values]
     b = buffers[3][0:n_values]
 
-    global CHUNK
-    CHUNK *= -1
-    for va, vb in zip(a, b):
-        lsloutlet.push_sample([va, vb * 3, CHUNK * n_values])
+    global CHUNK, FROM_LAST_BUFFER, TARGET_SRATE_HZ, LSL_LAST_PUSH, CURRIDX
+    # CHUNK *= -1
+
+    # put to b
+    LSL_BUFFER[CURRIDX : CURRIDX + 1, 0] = np.mean(a)
+    LSL_BUFFER[CURRIDX : CURRIDX + 1, 1] = np.mean(b * 3)
+    CURRIDX += 1
+    # LSL_BUFFER[CURRIDX : CURRIDX + n_values, 2] = CHUNK * n_values
+
+    dt = (time.perf_counter_ns() - LSL_LAST_PUSH) * 1e-9
+    req_samples = int(TARGET_SRATE_HZ * dt)
+
+    LSL_BUFFER[CURRIDX : CURRIDX + 1, 2] = req_samples
+
+    # just start over again, because here a long period was missing
+    if req_samples >= 2 * TARGET_SRATE_HZ:
+        # print(f"Starting over - {req_samples=}, {LSL_LAST_PUSH=}")
+        CURRIDX = 0
+        LSL_LAST_PUSH = time.perf_counter_ns()
+    else:
+        # print(f"{CURRIDX=}, \n{LSL_BUFFER[:CURRIDX].mean(axis=0)=}")
+
+        if req_samples >= 1:
+
+            LSL_LAST_PUSH = time.perf_counter_ns()
+
+            # print(f"Pushing: {req_samples=}, {dt=}")
+
+            # just push rectified values by mean
+            pre_push = time.perf_counter_ns()
+            for _ in range(req_samples):
+                lsloutlet.push_chunk(list(LSL_BUFFER[:CURRIDX].mean(axis=0)))
+            CURRIDX = 0
+
+            # print(
+            #     f"Push took: {(time.perf_counter_ns() - pre_push) * 1e-6:.3f}ms"
+            # )
+        # else:
+        #     print(f"Not pushing")
+    # for va, vb in zip(a, b):
+    #     lsloutlet.push_sample([va, vb * 3, CHUNK * n_values])
 
 
 def setup_osci(
@@ -124,6 +173,7 @@ def get_stream_outlet(
 
 
 def main(stop_event: threading.Event = threading.Event()):
+    stop_event = threading.Event() if stop_event is None else stop_event
     ch_range_a = ps.PS2000_VOLTAGE_RANGE["PS2000_200MV"]
     ch_range_b = ps.PS2000_VOLTAGE_RANGE["PS2000_200MV"]
 
@@ -144,9 +194,16 @@ def main(stop_event: threading.Event = threading.Event()):
             amp_uv=amp_uV,
         )
 
-        agg_factor = 100
-        sample_interval = 100_000  # sample interval in ns
-        max_samples = 10_000_000
+        # tested with 'tests/plot_test_with_awg.py' this seems to be a good config for plainly running to a local buffer
+        # maybe increase agg_factor to about 5 for approx 1kHz dumps of data
+        agg_factor = (
+            5  # agg_factor = 3 seems to be too much load for the lenovo
+        )
+
+        sample_interval = (
+            300  # sample interval in ns - 300 was too much for lenovo
+        )
+        max_samples = 10_000
 
         """ int16_t ps2000_run_streaming_ns
         (
@@ -167,12 +224,11 @@ def main(stop_event: threading.Event = threading.Event()):
             max_samples,
             False,
             agg_factor,
-            50_000,
+            25_000,  # seems to be minimum for valid config
         )
 
         lsloutlet = get_stream_outlet(
-            stream_name=STREAM_NAME,
-            sfreq=1 / (agg_factor * sample_interval * 1e-9),
+            stream_name=STREAM_NAME, sfreq=TARGET_SRATE_HZ, n_channels=3
         )
 
         pget_data = partial(get_data, lsloutlet=lsloutlet)
@@ -181,6 +237,8 @@ def main(stop_event: threading.Event = threading.Event()):
 
         while True and device.handle is not None and not stop_event.is_set():
             # fetch data from the osci
+            CURRIDX = 0
+            LSL_LAST_PUSH = time.perf_counter_ns()
             pupdate()
 
 

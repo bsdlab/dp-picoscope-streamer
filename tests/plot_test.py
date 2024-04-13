@@ -1,3 +1,4 @@
+# testing different parameters for smoothes possible representation
 from ctypes import POINTER, c_int16, c_uint32
 from functools import partial
 
@@ -27,7 +28,8 @@ adc_values = []
 nvalues = []
 times = []
 
-    lvals = []
+lvals = []
+
 
 def get_stream_outlet(
     stream_name: str = "test", sfreq: int = 1_000_000, n_channels: int = 1
@@ -54,7 +56,6 @@ def get_overview_buffers(
     adc_values.extend(vals)
     nvalues.append(n_values)
     outlet.push_chunk(vals)
-
 
 
 def adc_to_mv(values, range_, bitness=16):
