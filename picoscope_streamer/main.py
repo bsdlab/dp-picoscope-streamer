@@ -29,6 +29,8 @@ from ctypes import POINTER, c_int16, c_uint32
 
 from enum import IntEnum
 
+from dareplane_utils.general.time import sleep_s
+
 
 class TimeUnit(IntEnum):
     FEMTOSECOND = 0
@@ -227,19 +229,22 @@ def main(stop_event: threading.Event = threading.Event()):
             25_000,  # seems to be minimum for valid config
         )
 
-        lsloutlet = get_stream_outlet(
-            stream_name=STREAM_NAME, sfreq=TARGET_SRATE_HZ, n_channels=3
-        )
-
-        pget_data = partial(get_data, lsloutlet=lsloutlet)
-        cback = CALLBACK(pget_data)
-        pupdate = partial(update, device=device, callback=cback)
-
+        # --- No Osci Streaming to LSL for AO testing - to free up CPU load
+        #       which is needed by the AO streaming app
+        # lsloutlet = get_stream_outlet(
+        #     stream_name=STREAM_NAME, sfreq=TARGET_SRATE_HZ, n_channels=3
+        # )
+        #
+        # pget_data = partial(get_data, lsloutlet=lsloutlet)
+        # cback = CALLBACK(pget_data)
+        # pupdate = partial(update, device=device, callback=cback)
+        #
         while True and device.handle is not None and not stop_event.is_set():
             # fetch data from the osci
             CURRIDX = 0
             LSL_LAST_PUSH = time.perf_counter_ns()
-            pupdate()
+            sleep_s(1)
+            # pupdate()
 
 
 def get_main_thread() -> tuple[threading.Thread, threading.Event]:
