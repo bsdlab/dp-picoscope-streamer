@@ -54,9 +54,9 @@ STREAM_NAME = "PICOSTREAM"
 LASTMAX = 0
 CHUNK = 1  # 10_000
 
-TARGET_SRATE_HZ = 5_000
+TARGET_SRATE_HZ = 5_500
 
-LSL_BUFFER = np.zeros((5_000_000, 3))
+LSL_BUFFER = np.zeros((5_500_000, 3))
 LSL_LAST_PUSH = time.perf_counter_ns()
 CURRIDX = 0
 LAST_CB_CALL = time.perf_counter_ns()
@@ -201,7 +201,7 @@ def main(stop_event: threading.Event = threading.Event()):
         )
 
         sample_interval = (
-            300  # sample interval in ns - 300 was too much for lenovo
+            400  # sample interval in ns - 300 was too much for lenovo
         )
         max_samples = 10_000
 
