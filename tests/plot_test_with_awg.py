@@ -1,18 +1,16 @@
 # testing different parameters for smoothes possible representation
+import time
 from ctypes import POINTER, c_int16, c_uint32
-from functools import partial
-from picoscope_streamer.awg import set_sig_gen
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-
-from picosdk.ps2000 import ps2000
+from picosdk.ctypes_wrapper import C_CALLBACK_FUNCTION_FACTORY
 from picosdk.functions import assert_pico2000_ok
 from picosdk.PicoDeviceEnums import picoEnum
-from picosdk.ctypes_wrapper import C_CALLBACK_FUNCTION_FACTORY
+from picosdk.ps2000 import ps2000
 
-import time
+from picoscope_streamer.awg import set_sig_gen
 
 CALLBACK = C_CALLBACK_FUNCTION_FACTORY(
     None,
@@ -111,9 +109,7 @@ with ps2000.open_unit() as device:
     print(f"Collected: {imax}")
     print("-" * 80)
 
-    mv_values = adc_to_mv(
-        adc_values[:imax], ps2000.PS2000_VOLTAGE_RANGE["PS2000_50MV"]
-    )
+    mv_values = adc_to_mv(adc_values[:imax], ps2000.PS2000_VOLTAGE_RANGE["PS2000_50MV"])
     # print(f"{min(nvalues)} - {max(nvalues)} - {len(adc_values)}")
 
     df = pd.DataFrame({"nvalues": nvalues})

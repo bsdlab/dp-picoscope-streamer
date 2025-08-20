@@ -1,34 +1,25 @@
 # For now this is a very simple module only made to work with a picoscope 2204A
-from types import prepare_class
-import serial
 import ctypes
-
-from pathlib import Path
-from fire import Fire
 import time
-import numpy as np
-import pandas as pd
-
-import plotly.express as px
-
-import plotly.graph_objects as go
-
+from ctypes import POINTER, c_int16, c_uint32
 from functools import partial
 
-from scipy.signal import find_peaks
-
+import numpy as np
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+import serial
+from fire import Fire
+from picosdk.ctypes_wrapper import C_CALLBACK_FUNCTION_FACTORY
+from picosdk.device import Device
+from picosdk.functions import assert_pico2000_ok
+from picosdk.PicoDeviceEnums import picoEnum
 from picosdk.ps2000 import (
     ps2000 as ps,
 )  # although my osci is a 2204a, it requires the older ps2000 SDK - see here: https://www.picotech.com/support/viewtopic.php?t=13171
-
-from picosdk.functions import assert_pico2000_ok
-from picosdk.ctypes_wrapper import C_CALLBACK_FUNCTION_FACTORY
-from picosdk.device import Device
-from picosdk.PicoDeviceEnums import picoEnum
+from scipy.signal import find_peaks
 
 from picoscope_streamer.awg import set_sig_gen
-
-from ctypes import POINTER, c_int16, c_uint32
 
 CALLBACK = C_CALLBACK_FUNCTION_FACTORY(
     None,
@@ -76,9 +67,7 @@ def get_data(
     # Alsways set to down after
 
 
-def setup_osci(
-    device: Device, channel_range_a: int = 3, channel_range_b: int = 3
-):
+def setup_osci(device: Device, channel_range_a: int = 3, channel_range_b: int = 3):
     status = {}
     status["setChA"] = ps.ps2000_set_channel(
         device.handle,
@@ -119,9 +108,7 @@ def get_timebasis(device: Device):
     return time
 
 
-def update(
-    device: Device, callback: None = None, arduino: serial.Serial | None = None
-):
+def update(device: Device, callback: None = None, arduino: serial.Serial | None = None):
     ps.ps2000_get_streaming_last_values(device.handle, callback)
 
 
@@ -169,9 +156,7 @@ def main(t_test_s: float = 10):
         with serial.Serial(port="COM3", baudrate=19200, timeout=0.1) as arduino:
             pget_data = partial(get_data, arduino=arduino)
             cback = CALLBACK(pget_data)
-            pupdate = partial(
-                update, device=device, callback=cback, arduino=arduino
-            )
+            pupdate = partial(update, device=device, callback=cback, arduino=arduino)
 
             tstart = time.time_ns()
             tlast = time.time_ns()
@@ -185,10 +170,7 @@ def main(t_test_s: float = 10):
 
             tstart = time.time_ns()
             tlast = time.time_ns()
-            while (
-                device.handle is not None
-                and tlast - tstart < t_test_s * 10**9
-            ):
+            while device.handle is not None and tlast - tstart < t_test_s * 10**9:
                 # fetch data from the osci
                 pupdate()
                 tlast = time.time_ns()
@@ -266,17 +248,13 @@ def evaluate_time_to_channel_b_rise():
 
     # calc post peak reaction on channel B
     brises = np.where(np.diff(darr[:, 1]) > 5000)[0] + 1
-    postpeak_rises = [
-        brises[brises >= i][0] for i in apeaks[0] if i >= rises[0]
-    ]
+    postpeak_rises = [brises[brises >= i][0] for i in apeaks[0] if i >= rises[0]]
 
     fig = go.Figure()
     fig = fig.add_scatter(y=darr[:, 0])
     fig = fig.add_scatter(y=darr[:, 2], line_color="#333", opacity=0.3)
     fig = fig.add_scatter(y=darr[:, 1], line_color="#f33", opacity=0.3)
-    fig = fig.add_scatter(
-        x=apeaks[0], y=apeaks[1]["peak_heights"], mode="markers"
-    )
+    fig = fig.add_scatter(x=apeaks[0], y=apeaks[1]["peak_heights"], mode="markers")
     fig = fig.add_scatter(
         x=prepeak_rises,
         y=darr[prepeak_rises, 2],

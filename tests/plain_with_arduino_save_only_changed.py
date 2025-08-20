@@ -1,35 +1,24 @@
 # --> Here I am only storing values if there is a significant change happening
 # --> instead of osci buffer values, I store time stamps
 #
-from types import prepare_class
-import serial
-
-from pathlib import Path
-from fire import Fire
 import time
-import numpy as np
-import pandas as pd
-
-import plotly.express as px
-
-import plotly.graph_objects as go
-
+from ctypes import POINTER, c_int16, c_uint32
 from functools import partial
 
-from scipy.signal import find_peaks
-
+import numpy as np
+import pandas as pd
+import plotly.express as px
+import serial
+from fire import Fire
+from picosdk.ctypes_wrapper import C_CALLBACK_FUNCTION_FACTORY
+from picosdk.device import Device
+from picosdk.functions import assert_pico2000_ok
+from picosdk.PicoDeviceEnums import picoEnum
 from picosdk.ps2000 import (
     ps2000 as ps,
 )  # although my osci is a 2204a, it requires the older ps2000 SDK - see here: https://www.picotech.com/support/viewtopic.php?t=13171
 
-from picosdk.functions import assert_pico2000_ok
-from picosdk.ctypes_wrapper import C_CALLBACK_FUNCTION_FACTORY
-from picosdk.device import Device
-from picosdk.PicoDeviceEnums import picoEnum
-
 from picoscope_streamer.awg import set_sig_gen
-
-from ctypes import POINTER, c_int16, c_uint32
 
 CALLBACK = C_CALLBACK_FUNCTION_FACTORY(
     None,
@@ -76,9 +65,7 @@ def get_data(
         B_POWER.append((now, 0))
 
 
-def setup_osci(
-    device: Device, channel_range_a: int = 3, channel_range_b: int = 3
-):
+def setup_osci(device: Device, channel_range_a: int = 3, channel_range_b: int = 3):
     status = {}
     status["setChA"] = ps.ps2000_set_channel(
         device.handle,
@@ -99,9 +86,7 @@ def setup_osci(
     return status
 
 
-def update(
-    device: Device, callback: None = None, arduino: serial.Serial | None = None
-):
+def update(device: Device, callback: None = None, arduino: serial.Serial | None = None):
     ps.ps2000_get_streaming_last_values(device.handle, callback)
 
 
@@ -148,15 +133,12 @@ def main(t_test_s: float = 10):
         with serial.Serial(port="COM3", baudrate=19200, timeout=0.1) as arduino:
             pget_data = partial(get_data, arduino=arduino)
             cback = CALLBACK(pget_data)
-            pupdate = partial(
-                update, device=device, callback=cback, arduino=arduino
-            )
+            pupdate = partial(update, device=device, callback=cback, arduino=arduino)
 
             tstart = time.time_ns()
 
             while (
-                device.handle is not None
-                and time.time_ns() - tstart < t_test_s * 10**9
+                device.handle is not None and time.time_ns() - tstart < t_test_s * 10**9
             ):
                 # fetch data from the osci
                 pupdate()

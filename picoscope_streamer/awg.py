@@ -1,7 +1,8 @@
 import ctypes
-from picosdk.ps2000 import ps2000 as ps
-from picosdk.functions import assert_pico2000_ok
 import time
+
+from picosdk.functions import assert_pico2000_ok
+from picosdk.ps2000 import ps2000 as ps
 
 
 def set_sig_gen(

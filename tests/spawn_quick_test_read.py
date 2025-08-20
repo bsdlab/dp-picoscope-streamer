@@ -1,20 +1,15 @@
+import time
 from ctypes import POINTER, c_int16, c_uint32
 from functools import partial
 
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
 import pylsl
-
-from picosdk.ps2000 import ps2000
+from picosdk.ctypes_wrapper import C_CALLBACK_FUNCTION_FACTORY
+from picosdk.device import Device
 from picosdk.functions import assert_pico2000_ok
 from picosdk.PicoDeviceEnums import picoEnum
-from picosdk.ctypes_wrapper import C_CALLBACK_FUNCTION_FACTORY
+from picosdk.ps2000 import ps2000
 
 from picoscope_streamer.awg import set_sig_gen
-import time
-
-from picosdk.device import Device
 
 CALLBACK = C_CALLBACK_FUNCTION_FACTORY(
     None,
@@ -67,9 +62,7 @@ def get_overview_buffers(
     TICK += 1
 
 
-def setup_osci(
-    device: Device, channel_range_a: int = 3, channel_range_b: int = 3
-):
+def setup_osci(device: Device, channel_range_a: int = 3, channel_range_b: int = 3):
     status = {}
     status["setChA"] = ps2000.ps2000_set_channel(
         device.handle,
@@ -94,9 +87,7 @@ ch_range_a = ps2000.PS2000_VOLTAGE_RANGE["PS2000_1V"]
 ch_range_b = ps2000.PS2000_VOLTAGE_RANGE["PS2000_1V"]
 with ps2000.open_unit() as device:
     print("Device info: {}".format(device.info))
-    status = setup_osci(
-        device, channel_range_a=ch_range_a, channel_range_b=ch_range_b
-    )
+    status = setup_osci(device, channel_range_a=ch_range_a, channel_range_b=ch_range_b)
     # Activate the AWG
     freq_hz = 1000.0  # we expect reaction to be faster than 10ms
     sig_type = 0  # Triangular is better for buffer stability (the edge in the saber tooth leads to problems)

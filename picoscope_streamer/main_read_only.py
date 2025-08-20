@@ -1,32 +1,18 @@
 # For now this is a very simple module only made to work with a picoscope 2204A
-import serial
-import pylsl
-import mmap
-
-import numpy as np
-
-from typing import Callable
-
-from pathlib import Path
-from fire import Fire
-import time
-
 import threading
-
+from ctypes import POINTER, c_int16, c_uint32
+from enum import IntEnum
 from functools import partial
 
+import pylsl
+from fire import Fire
+from picosdk.ctypes_wrapper import C_CALLBACK_FUNCTION_FACTORY
+from picosdk.device import Device
+from picosdk.functions import assert_pico2000_ok
+from picosdk.PicoDeviceEnums import picoEnum
 from picosdk.ps2000 import (
     ps2000 as ps,
 )  # although my osci is a 2204a, it requires the older ps2000 SDK - see here: https://www.picotech.com/support/viewtopic.php?t=13171
-
-from picosdk.functions import assert_pico2000_ok
-from picosdk.ctypes_wrapper import C_CALLBACK_FUNCTION_FACTORY
-from picosdk.device import Device
-from picosdk.PicoDeviceEnums import picoEnum
-
-from ctypes import POINTER, c_int16, c_uint32
-
-from enum import IntEnum
 
 
 class TimeUnit(IntEnum):
@@ -80,9 +66,7 @@ def buffer_to_lsl(buffers, n_values, lsloutlet: pylsl.StreamOutlet):
         pass
 
 
-def setup_osci(
-    device: Device, channel_range_a: int = 3, channel_range_b: int = 3
-):
+def setup_osci(device: Device, channel_range_a: int = 3, channel_range_b: int = 3):
     status = {}
     status["setChA"] = ps.ps2000_set_channel(
         device.handle,
