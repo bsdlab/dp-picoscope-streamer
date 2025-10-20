@@ -1,33 +1,22 @@
 # For now this is a very simple module only made to work with a picoscope 2204A
-import serial
-import pylsl
-
-import numpy as np
-
-from typing import Callable
-
-from pathlib import Path
-from fire import Fire
-import time
-
 import threading
-
+import time
+from ctypes import POINTER, c_int16, c_uint32
+from enum import IntEnum
 from functools import partial
 
+import numpy as np
+import pylsl
+from fire import Fire
+from picosdk.ctypes_wrapper import C_CALLBACK_FUNCTION_FACTORY
+from picosdk.device import Device
+from picosdk.functions import assert_pico2000_ok
+from picosdk.PicoDeviceEnums import picoEnum
 from picosdk.ps2000 import (
     ps2000 as ps,
 )  # although my osci is a 2204a, it requires the older ps2000 SDK - see here: https://www.picotech.com/support/viewtopic.php?t=13171
 
-from picosdk.functions import assert_pico2000_ok
-from picosdk.ctypes_wrapper import C_CALLBACK_FUNCTION_FACTORY
-from picosdk.device import Device
-from picosdk.PicoDeviceEnums import picoEnum
-
 from picoscope_streamer.awg import set_sig_gen
-
-from ctypes import POINTER, c_int16, c_uint32
-
-from enum import IntEnum
 
 
 class TimeUnit(IntEnum):
@@ -57,8 +46,6 @@ CHUNK = 1  # 10_000
 TARGET_SRATE_HZ = 5_500
 
 LSL_BUFFER = np.zeros((5_500_000, 3))
-LSL_LAST_PUSH = time.perf_counter_ns()
-CURRIDX = 0
 LAST_CB_CALL = time.perf_counter_ns()
 
 
@@ -108,10 +95,7 @@ def buffer_to_lsl(buffers, n_values, lsloutlet: pylsl.StreamOutlet):
         # print(f"{CURRIDX=}, \n{LSL_BUFFER[:CURRIDX].mean(axis=0)=}")
 
         if req_samples >= 1:
-
             LSL_LAST_PUSH = time.perf_counter_ns()
-
-            # print(f"Pushing: {req_samples=}, {dt=}")
 
             # just push rectified values by mean
             pre_push = time.perf_counter_ns()
@@ -119,18 +103,8 @@ def buffer_to_lsl(buffers, n_values, lsloutlet: pylsl.StreamOutlet):
                 lsloutlet.push_chunk(list(LSL_BUFFER[:CURRIDX].mean(axis=0)))
             CURRIDX = 0
 
-            # print(
-            #     f"Push took: {(time.perf_counter_ns() - pre_push) * 1e-6:.3f}ms"
-            # )
-        # else:
-        #     print(f"Not pushing")
-    # for va, vb in zip(a, b):
-    #     lsloutlet.push_sample([va, vb * 3, CHUNK * n_values])
 
-
-def setup_osci(
-    device: Device, channel_range_a: int = 3, channel_range_b: int = 3
-):
+def setup_osci(device: Device, channel_range_a: int = 3, channel_range_b: int = 3):
     status = {}
     status["setChA"] = ps.ps2000_set_channel(
         device.handle,
@@ -196,13 +170,9 @@ def main(stop_event: threading.Event = threading.Event()):
 
         # tested with 'tests/plot_test_with_awg.py' this seems to be a good config for plainly running to a local buffer
         # maybe increase agg_factor to about 5 for approx 1kHz dumps of data
-        agg_factor = (
-            5  # agg_factor = 3 seems to be too much load for the lenovo
-        )
+        agg_factor = 5  # agg_factor = 3 seems to be too much load for the lenovo
 
-        sample_interval = (
-            400  # sample interval in ns - 300 was too much for lenovo
-        )
+        sample_interval = 400  # sample interval in ns - 300 was too much for lenovo
         max_samples = 10_000
 
         """ int16_t ps2000_run_streaming_ns
@@ -217,7 +187,7 @@ def main(stop_event: threading.Event = threading.Event()):
         );
         """
 
-        res = ps.ps2000_run_streaming_ns(
+        _ = ps.ps2000_run_streaming_ns(
             device.handle,
             sample_interval,
             TimeUnit.NANOSECOND,
