@@ -119,7 +119,7 @@ def main(t_test_s: float = 10):
         sample_interval = 300  # sample interval in ns
         max_samples = 100_000
 
-        res = ps.ps2000_run_streaming_ns(
+        _ = ps.ps2000_run_streaming_ns(
             device.handle,
             sample_interval,
             2,
@@ -163,6 +163,7 @@ def evaluate_time_to_channel_b_rise():
     # sometimes a bpower reaction is scipped -> less values in binc.
     # align them by always choosing the next closest within tinc
     ix = [tinc[tinc <= t].shape[0] for t in binc]
+    tinc_s = tinc[ix,...]
 
     df = pd.DataFrame(
         {

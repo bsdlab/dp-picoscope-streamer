@@ -107,13 +107,13 @@ def main(stop_event: threading.Event = threading.Event()):
     ch_range_a = ps.PS2000_VOLTAGE_RANGE["PS2000_200MV"]
 
     with ps.open_unit() as device:
-        status = setup_osci(device, channel_range_a=ch_range_a)
+        _ = setup_osci(device, channel_range_a=ch_range_a)
 
         agg_factor = 1
         sample_interval = 300  # sample interval in ns - try to be as fast as possible, processing is usually sample_interval * 500
         max_samples = 10_000
 
-        res = ps.ps2000_run_streaming_ns(
+        _ = ps.ps2000_run_streaming_ns(
             device.handle,
             sample_interval,
             TimeUnit.NANOSECOND,

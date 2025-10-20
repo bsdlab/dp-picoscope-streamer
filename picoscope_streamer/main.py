@@ -46,8 +46,6 @@ CHUNK = 1  # 10_000
 TARGET_SRATE_HZ = 5_500
 
 LSL_BUFFER = np.zeros((5_500_000, 3))
-LSL_LAST_PUSH = time.perf_counter_ns()
-CURRIDX = 0
 LAST_CB_CALL = time.perf_counter_ns()
 
 
@@ -99,21 +97,11 @@ def buffer_to_lsl(buffers, n_values, lsloutlet: pylsl.StreamOutlet):
         if req_samples >= 1:
             LSL_LAST_PUSH = time.perf_counter_ns()
 
-            # print(f"Pushing: {req_samples=}, {dt=}")
-
             # just push rectified values by mean
             pre_push = time.perf_counter_ns()
             for _ in range(req_samples):
                 lsloutlet.push_chunk(list(LSL_BUFFER[:CURRIDX].mean(axis=0)))
             CURRIDX = 0
-
-            # print(
-            #     f"Push took: {(time.perf_counter_ns() - pre_push) * 1e-6:.3f}ms"
-            # )
-        # else:
-        #     print(f"Not pushing")
-    # for va, vb in zip(a, b):
-    #     lsloutlet.push_sample([va, vb * 3, CHUNK * n_values])
 
 
 def setup_osci(device: Device, channel_range_a: int = 3, channel_range_b: int = 3):
@@ -199,7 +187,7 @@ def main(stop_event: threading.Event = threading.Event()):
         );
         """
 
-        res = ps.ps2000_run_streaming_ns(
+        _ = ps.ps2000_run_streaming_ns(
             device.handle,
             sample_interval,
             TimeUnit.NANOSECOND,
