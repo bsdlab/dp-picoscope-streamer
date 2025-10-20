@@ -1,4 +1,5 @@
 # testing different parameters for smoothes possible representation
+import time
 from ctypes import POINTER, c_int16, c_uint32
 from functools import partial
 
@@ -6,13 +7,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pylsl
-
-from picosdk.ps2000 import ps2000
+from picosdk.ctypes_wrapper import C_CALLBACK_FUNCTION_FACTORY
 from picosdk.functions import assert_pico2000_ok
 from picosdk.PicoDeviceEnums import picoEnum
-from picosdk.ctypes_wrapper import C_CALLBACK_FUNCTION_FACTORY
-
-import time
+from picosdk.ps2000 import ps2000
 
 CALLBACK = C_CALLBACK_FUNCTION_FACTORY(
     None,
@@ -51,7 +49,6 @@ def get_stream_outlet(
 def get_overview_buffers(
     buffers, _overflow, _triggered_at, _triggered, _auto_stop, n_values, outlet
 ):
-
     vals = buffers[0][0:n_values]
     adc_values.extend(vals)
     nvalues.append(n_values)
@@ -94,9 +91,7 @@ with ps2000.open_unit() as device:
 
     ps2000.ps2000_stop(device.handle)
 
-    mv_values = adc_to_mv(
-        adc_values, ps2000.PS2000_VOLTAGE_RANGE["PS2000_50MV"]
-    )
+    mv_values = adc_to_mv(adc_values, ps2000.PS2000_VOLTAGE_RANGE["PS2000_50MV"])
     # print(f"{min(nvalues)} - {max(nvalues)} - {len(adc_values)}")
 
     df = pd.DataFrame({"nvalues": nvalues})

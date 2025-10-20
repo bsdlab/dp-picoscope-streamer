@@ -1,11 +1,9 @@
-from fire import Fire
-
 from dareplane_utils.default_server.server import DefaultServer
-
-from picoscope_streamer.utils.logging import logger
+from fire import Fire
 
 # load from bkp which has the stimulation activated
 from picoscope_streamer.main import get_main_thread
+from picoscope_streamer.utils.logging import logger
 
 
 def main(port: int = 8080, ip: str = "127.0.0.1", loglevel: int = 10):

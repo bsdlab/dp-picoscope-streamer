@@ -1,12 +1,10 @@
-import time
-import pylsl
+import logging
 import threading
-
-from picoscope_streamer.main import get_stream_outlet
+import time
 
 import numpy as np
 
-import logging
+from picoscope_streamer.main import get_stream_outlet
 
 logger = logging.getLogger(__name__)
 ch = logging.StreamHandler()
@@ -23,9 +21,7 @@ def start_saw_stream(
     stim_freq: int = 20,
     stop_event: threading.Event = threading.Event(),
 ):
-    outlet = get_stream_outlet(
-        stream_name="SOURCE", sfreq=push_freq, n_channels=1
-    )
+    outlet = get_stream_outlet(stream_name="SOURCE", sfreq=push_freq, n_channels=1)
 
     a = np.linspace(0, 65200, int((push_freq / stim_freq) // 2))
     basic_shape = np.hstack([a, a[::-1]]) - 32600
